@@ -24,14 +24,22 @@ public class PutColumn {
     private final String columnFamily;
     private final String columnQualifier;
     private final byte[] buffer;
-
+    private final String visibility;
 
     public PutColumn(final String columnFamily, final String columnQualifier, final byte[] buffer) {
         this.columnFamily = columnFamily;
         this.columnQualifier = columnQualifier;
         this.buffer = buffer;
+        this.visibility = null;
     }
 
+    public PutColumn(final String columnFamily, final String columnQualifier, final byte[] buffer, String visibility) {
+        this.columnFamily = columnFamily;
+        this.columnQualifier = columnQualifier;
+        this.buffer = buffer;
+        this.visibility = visibility;
+    }
+    
     public String getColumnFamily() {
         return columnFamily;
     }
@@ -44,4 +52,8 @@ public class PutColumn {
         return buffer;
     }
 
+    public String getVisibility() {
+        return visibility;
+    }
+    
 }

@@ -16,6 +16,7 @@
  */
 package org.apache.nifi.hbase;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.nifi.annotation.behavior.EventDriven;
 import org.apache.nifi.annotation.behavior.InputRequirement;
 import org.apache.nifi.annotation.behavior.SupportsBatching;
@@ -29,6 +30,7 @@ import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.io.InputStreamCallback;
+import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.stream.io.StreamUtils;
 
 import java.io.IOException;
@@ -47,6 +49,14 @@ import java.util.Set;
 @CapabilityDescription("Adds the Contents of a FlowFile to HBase as the value of a single cell")
 public class PutHBaseCell extends AbstractPutHBase {
 
+	protected static final PropertyDescriptor VISIBILITY = new PropertyDescriptor.Builder()
+            .name("Visibility")
+            .description("Visibility expression to apply to the cell")
+            .required(false)
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+	
     @Override
     protected List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         final List<PropertyDescriptor> properties = new ArrayList<>();
@@ -56,6 +66,7 @@ public class PutHBaseCell extends AbstractPutHBase {
         properties.add(COLUMN_FAMILY);
         properties.add(COLUMN_QUALIFIER);
         properties.add(BATCH_SIZE);
+        properties.add(VISIBILITY);
         return properties;
     }
 
@@ -73,6 +84,7 @@ public class PutHBaseCell extends AbstractPutHBase {
         final String row = context.getProperty(ROW_ID).evaluateAttributeExpressions(flowFile).getValue();
         final String columnFamily = context.getProperty(COLUMN_FAMILY).evaluateAttributeExpressions(flowFile).getValue();
         final String columnQualifier = context.getProperty(COLUMN_QUALIFIER).evaluateAttributeExpressions(flowFile).getValue();
+        String visibility = context.getProperty(VISIBILITY).evaluateAttributeExpressions(flowFile).getValue();
 
         final byte[] buffer = new byte[(int) flowFile.getSize()];
         session.read(flowFile, new InputStreamCallback() {
@@ -82,7 +94,11 @@ public class PutHBaseCell extends AbstractPutHBase {
             }
         });
 
-        final Collection<PutColumn> columns = Collections.singletonList(new PutColumn(columnFamily, columnQualifier, buffer));
+        if(StringUtils.isEmpty(visibility)) {
+        	visibility = null;
+        }
+        
+        final Collection<PutColumn> columns = Collections.singletonList(new PutColumn(columnFamily, columnQualifier, buffer, visibility));
         return new PutFlowFile(tableName, row, columns, flowFile);
     }
 

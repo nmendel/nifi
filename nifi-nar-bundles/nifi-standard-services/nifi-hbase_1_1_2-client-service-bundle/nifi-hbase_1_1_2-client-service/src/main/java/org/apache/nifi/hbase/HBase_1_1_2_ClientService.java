@@ -32,6 +32,7 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.ParseFilter;
+import org.apache.hadoop.hbase.security.visibility.CellVisibility;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.nifi.annotation.behavior.DynamicProperty;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
@@ -265,20 +266,37 @@ public class HBase_1_1_2_ClientService extends AbstractControllerService impleme
     @Override
     public void put(final String tableName, final Collection<PutFlowFile> puts) throws IOException {
         try (final Table table = connection.getTable(TableName.valueOf(tableName))) {
-            // Create one Put per row....
+            // Create one Put per row per visibility string....
             final Map<String, Put> rowPuts = new HashMap<>();
             for (final PutFlowFile putFlowFile : puts) {
-                Put put = rowPuts.get(putFlowFile.getRow());
-                if (put == null) {
-                    put = new Put(putFlowFile.getRow().getBytes(StandardCharsets.UTF_8));
-                    rowPuts.put(putFlowFile.getRow(), put);
-                }
-
+            	Map<String, Collection<PutColumn>> columnsByVisibility = new HashMap<String, Collection<PutColumn>>();
+                
                 for (final PutColumn column : putFlowFile.getColumns()) {
-                    put.addColumn(
-                            column.getColumnFamily().getBytes(StandardCharsets.UTF_8),
-                            column.getColumnQualifier().getBytes(StandardCharsets.UTF_8),
-                            column.getBuffer());
+                	final String visibility = column.getVisibility();
+                	
+                	if(!columnsByVisibility.containsKey(visibility)) {
+                		columnsByVisibility.put(visibility, new ArrayList<PutColumn>());
+                	}
+                	
+                	columnsByVisibility.get(visibility).add(column);
+                }
+                
+                for (final String vis : columnsByVisibility.keySet()) {
+                	String key = (vis == null) ? putFlowFile.getRow() : String.format("%s_%s", putFlowFile.getRow(), vis);
+                   	Put put = rowPuts.get(key);
+                   	if (put == null) {
+                   		put = new Put(putFlowFile.getRow().getBytes(StandardCharsets.UTF_8));
+                   		rowPuts.put(key, put);
+                   	}
+                   	
+                   	for (final PutColumn column : columnsByVisibility.get(vis)) {
+	                    put.addColumn(
+	                            column.getColumnFamily().getBytes(StandardCharsets.UTF_8),
+	                            column.getColumnQualifier().getBytes(StandardCharsets.UTF_8),
+	                            column.getBuffer());
+                   	}
+                   	
+                   	put.setCellVisibility(new CellVisibility(vis));
                 }
             }
 
@@ -295,6 +313,11 @@ public class HBase_1_1_2_ClientService extends AbstractControllerService impleme
                         column.getColumnFamily().getBytes(StandardCharsets.UTF_8),
                         column.getColumnQualifier().getBytes(StandardCharsets.UTF_8),
                         column.getBuffer());
+                
+                // TODO: does not handle multiple cell visibility strings, need to create a separate put for each
+                if(column.getVisibility() != null) {
+                	put.setCellVisibility(new CellVisibility(column.getVisibility()));
+                }
             }
             table.put(put);
         }

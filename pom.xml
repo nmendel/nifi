@@ -135,6 +135,17 @@ language governing permissions and limitations under the License. -->
                 <enabled>true</enabled>
             </releases>
         </repository>
+        <repository>
+            <id>cdh</id>
+            <name>Cloudera Repo</name>
+            <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
     </repositories>
 
     <dependencyManagement>

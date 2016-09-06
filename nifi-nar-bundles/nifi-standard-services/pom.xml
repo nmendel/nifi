@@ -23,6 +23,8 @@
     <artifactId>nifi-standard-services</artifactId>
     <packaging>pom</packaging>
     <modules>
+    	<module>nifi-accumulo-cdh_5_1_4-client-service-bundle</module>
+		<module>nifi-accumulo-client-service-api</module>
         <module>nifi-distributed-cache-client-service-api</module>
         <module>nifi-distributed-cache-services-bundle</module>
         <module>nifi-load-distribution-service-api</module>

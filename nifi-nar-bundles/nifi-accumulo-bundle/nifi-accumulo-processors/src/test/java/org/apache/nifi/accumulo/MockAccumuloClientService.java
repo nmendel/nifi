@@ -17,8 +17,8 @@
 package org.apache.nifi.accumulo;
 
 import org.apache.nifi.controller.AbstractControllerService;
-import org.apache.nifi.accumulo.put.PutColumn;
-import org.apache.nifi.accumulo.put.PutFlowFile;
+import org.apache.nifi.accumulo.mutation.MutationColumn;
+import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.accumulo.scan.Column;
 import org.apache.nifi.accumulo.scan.ResultCell;
 import org.apache.nifi.accumulo.scan.ResultHandler;
@@ -34,11 +34,11 @@ import java.util.Map;
 public class MockAccumuloClientService extends AbstractControllerService implements AccumuloClientService {
 
     private Map<String,ResultCell[]> results = new HashMap<>();
-    private Map<String, List<PutFlowFile>> flowFilePuts = new HashMap<>();
+    private Map<String, List<MutationFlowFile>> flowFilePuts = new HashMap<>();
     private boolean throwException = false;
 
     @Override
-    public void put(String tableName, Collection<PutFlowFile> puts) throws IOException {
+    public void put(String tableName, Collection<MutationFlowFile> puts) throws IOException {
         if (throwException) {
             throw new IOException("exception");
         }
@@ -47,7 +47,7 @@ public class MockAccumuloClientService extends AbstractControllerService impleme
     }
 
     @Override
-    public void put(String tableName, String rowId, Collection<PutColumn> columns) throws IOException {
+    public void put(String tableName, String rowId, Collection<MutationColumn> columns) throws IOException {
        throw new UnsupportedOperationException();
     }
 
@@ -98,7 +98,7 @@ public class MockAccumuloClientService extends AbstractControllerService impleme
         results.put(rowKey, cellArray);
     }
 
-    public Map<String, List<PutFlowFile>> getFlowFilePuts() {
+    public Map<String, List<MutationFlowFile>> getFlowFilePuts() {
         return flowFilePuts;
     }
 

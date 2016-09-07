@@ -24,8 +24,8 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
-import org.apache.nifi.accumulo.put.PutColumn;
-import org.apache.nifi.accumulo.put.PutFlowFile;
+import org.apache.nifi.accumulo.mutation.MutationColumn;
+import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
@@ -79,7 +79,7 @@ public class PutAccumuloCell extends AbstractPutAccumulo {
     }
 
     @Override
-    protected PutFlowFile createPut(final ProcessSession session, final ProcessContext context, final FlowFile flowFile) {
+    protected MutationFlowFile createPut(final ProcessSession session, final ProcessContext context, final FlowFile flowFile) {
         final String tableName = context.getProperty(TABLE_NAME).evaluateAttributeExpressions(flowFile).getValue();
         final String row = context.getProperty(ROW_ID).evaluateAttributeExpressions(flowFile).getValue();
         final String columnFamily = context.getProperty(COLUMN_FAMILY).evaluateAttributeExpressions(flowFile).getValue();
@@ -98,8 +98,8 @@ public class PutAccumuloCell extends AbstractPutAccumulo {
         	visibility = null;
         }
         
-        final Collection<PutColumn> columns = Collections.singletonList(new PutColumn(columnFamily, columnQualifier, buffer, visibility));
-        return new PutFlowFile(tableName, row, columns, flowFile);
+        final Collection<MutationColumn> columns = Collections.singletonList(new MutationColumn(columnFamily, columnQualifier, buffer, visibility));
+        return new MutationFlowFile(tableName, row, columns, flowFile);
     }
 
 }

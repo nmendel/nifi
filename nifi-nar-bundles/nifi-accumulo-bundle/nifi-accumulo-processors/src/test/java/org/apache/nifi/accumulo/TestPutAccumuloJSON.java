@@ -16,7 +16,7 @@
  */
 package org.apache.nifi.accumulo;
 
-import org.apache.nifi.accumulo.put.PutFlowFile;
+import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.provenance.ProvenanceEventRecord;
 import org.apache.nifi.provenance.ProvenanceEventType;
 import org.apache.nifi.reporting.InitializationException;
@@ -84,7 +84,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
         assertEquals(1, puts.size());
 
         final Map<String,String> expectedColumns = new HashMap<>();
@@ -116,7 +116,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
         assertEquals(1, puts.size());
 
         // should be a put with row id of myRowId, and rowField shouldn't end up in the columns
@@ -197,7 +197,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get("myTable");
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get("myTable");
         assertEquals(1, puts.size());
 
         final Map<String,String> expectedColumns = new HashMap<>();
@@ -232,7 +232,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get("myTable");
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get("myTable");
         assertEquals(1, puts.size());
 
         final Map<String,String> expectedColumns = new HashMap<>();
@@ -260,7 +260,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
         assertEquals(1, puts.size());
 
         // should have skipped field1 and field3
@@ -285,7 +285,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
         assertEquals(1, puts.size());
 
         // should have skipped field1 and field3
@@ -333,7 +333,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
         assertEquals(1, puts.size());
 
         // should have skipped field1 and field3
@@ -359,7 +359,7 @@ public class TestPutAccumuloJSON {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        final List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
+        final List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(DEFAULT_TABLE_NAME);
         assertEquals(1, puts.size());
 
         // should have skipped field1 and field3

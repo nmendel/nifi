@@ -28,8 +28,8 @@ import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.ValidationContext;
 import org.apache.nifi.components.ValidationResult;
 import org.apache.nifi.flowfile.FlowFile;
-import org.apache.nifi.accumulo.put.PutColumn;
-import org.apache.nifi.accumulo.put.PutFlowFile;
+import org.apache.nifi.accumulo.mutation.MutationColumn;
+import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
@@ -136,7 +136,7 @@ public class PutAccumuloJSON extends AbstractPutAccumulo {
     }
 
     @Override
-    protected PutFlowFile createPut(final ProcessSession session, final ProcessContext context, final FlowFile flowFile) {
+    protected MutationFlowFile createPut(final ProcessSession session, final ProcessContext context, final FlowFile flowFile) {
         final String tableName = context.getProperty(TABLE_NAME).evaluateAttributeExpressions(flowFile).getValue();
         final String rowId = context.getProperty(ROW_ID).evaluateAttributeExpressions(flowFile).getValue();
         final String rowFieldName = context.getProperty(ROW_FIELD_NAME).evaluateAttributeExpressions(flowFile).getValue();
@@ -168,7 +168,7 @@ public class PutAccumuloJSON extends AbstractPutAccumulo {
             return null;
         }
 
-        final Collection<PutColumn> columns = new ArrayList<>();
+        final Collection<MutationColumn> columns = new ArrayList<>();
         final ObjectHolder<String> rowIdHolder = new ObjectHolder<>(null);
 
         // convert each field/value to a column for the put, skip over nulls and arrays
@@ -210,7 +210,7 @@ public class PutAccumuloJSON extends AbstractPutAccumulo {
                 if (extractRowId && fieldName.equals(rowFieldName)) {
                     rowIdHolder.set(fieldValueHolder.get());
                 } else {
-                    columns.add(new PutColumn(columnFamily, fieldName, fieldValueHolder.get().getBytes(StandardCharsets.UTF_8)));
+                    columns.add(new MutationColumn(columnFamily, fieldName, fieldValueHolder.get().getBytes(StandardCharsets.UTF_8)));
                 }
             }
         }
@@ -224,7 +224,7 @@ public class PutAccumuloJSON extends AbstractPutAccumulo {
         }
 
         final String putRowId = (extractRowId ? rowIdHolder.get() : rowId);
-        return new PutFlowFile(tableName, putRowId, columns, flowFile);
+        return new MutationFlowFile(tableName, putRowId, columns, flowFile);
     }
 
 }

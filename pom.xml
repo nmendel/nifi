@@ -1369,7 +1369,7 @@ language governing permissions and limitations under the License. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <executions>
-                    <!-- Only run for tests -->
+                    <!-- 
                     <execution>
                         <id>groovy-tests</id>
                         <goals>
@@ -1379,6 +1379,7 @@ language governing permissions and limitations under the License. -->
                             <compilerId>groovy-eclipse-compiler</compilerId>
                         </configuration>
                     </execution>
+                     -->
                 </executions>
                 <configuration>
                     <source>1.7</source>

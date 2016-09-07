@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.client.AccumuloException;
@@ -33,20 +34,29 @@ import org.apache.accumulo.core.client.BatchWriter;
 import org.apache.accumulo.core.client.BatchWriterConfig;
 import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.Instance;
+import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.MutationsRejectedException;
+import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.ZooKeeperInstance;
 import org.apache.accumulo.core.client.admin.NamespaceOperations;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
+import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.Range;
+import org.apache.accumulo.core.data.Value;
+import org.apache.accumulo.core.iterators.Filter;
+import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.ColumnVisibility;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.nifi.accumulo.mutation.MutationColumn;
 import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.accumulo.scan.Column;
+import org.apache.nifi.accumulo.scan.ResultCell;
 import org.apache.nifi.accumulo.scan.ResultHandler;
 import org.apache.nifi.annotation.behavior.DynamicProperty;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
@@ -290,26 +300,28 @@ public class Accumulo_CDH_5_1_4_ClientService extends AbstractControllerService 
             throws IOException {
 
     }
-    	/*
-        Filter filter = null;
+    /*
+    public void sca2(final String tableName, final Collection<Column> columns, final String filterExpression, final long minTime, final ResultHandler handler)
+            throws IOException {
+        IteratorSetting filter = null;
         if (!StringUtils.isBlank(filterExpression)) {
-            ParseFilter parseFilter = new ParseFilter();
-            filter = parseFilter.parseFilterString(filterExpression);
+            //filter = new IteratorSetting();
+        	//filter.
         }
         
         try {
         	
-			final ResultScanner scanner = getResults(tableName, columns, "", filter, minTime);
+			final Scanner scanner = getResults(tableName, columns, filter, minTime);
 
-            for (final Result result : scanner) {
-                final byte[] rowKey = result.getRow();
-                final Cell[] cells = result.rawCells();
+            for (final Entry<Key, Value> result : scanner) {
+                final Key rowKey = result.getKey();
+                final Value cells = result.getValue();
 
                 if (cells == null) {
                     continue;
                 }
 
-                // convert HBase cells to NiFi cells
+                // convert Accumulo cells to NiFi cells
                 final ResultCell[] resultCells = new ResultCell[cells.length];
 
                 for (int i=0; i < cells.length; i++) {
@@ -348,32 +360,35 @@ public class Accumulo_CDH_5_1_4_ClientService extends AbstractControllerService 
             }
         }
     }
-
+*/
     // protected and extracted into separate method for testing
-    protected Map.Entry<Key, Value> getResults(final String tableName, final Collection<Column> columns, final Filter filter, final long minTime) throws IOException {
+    protected Scanner getResults(final String tableName, final Collection<Column> columns, final IteratorSetting filter, final long minTime) throws IOException, TableNotFoundException {
         // Create a new scan. We will set the min timerange as the latest timestamp that
         // we have seen so far. The minimum timestamp is inclusive, so we will get duplicates.
         // We will record any cells that have the latest timestamp, so that when we scan again,
         // we know to throw away those duplicates.
-    	final Scanner scan = connector.createScanner(tableName, new Authorizations(""));
+    	final Scanner scan = connector.createScanner(tableName, new Authorizations());
 
-        scan.setTimeRange(minTime, Long.MAX_VALUE);
+    	final Range range = new Range();
+    	//range.
+    	//minTime, Long.MAX_VALUE
+    	scan.setRange(range);
 
         if (filter != null) {
-            scan.setFilter(filter);
+            scan.addScanIterator(filter);
         }
 
         if (columns != null) {
             for (Column col : columns) {
                 if (col.getQualifier() == null) {
-                    scan.addFamily(col.getFamily());
+                    scan.fetchColumnFamily(new Text(col.getFamily()));
                 } else {
-                    scan.addColumn(col.getFamily(), col.getQualifier());
+                    scan.fetchColumn(new Text(col.getFamily()), new Text(col.getQualifier()));
                 }
             }
         }
 
-        return table.getScanner(scan);
+        return scan;
     }
-    	 */
+    	
 }

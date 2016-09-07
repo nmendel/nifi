@@ -20,7 +20,7 @@ package org.apache.nifi.accumulo;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
-import org.apache.nifi.accumulo.put.PutFlowFile;
+import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.processor.AbstractProcessor;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
@@ -99,11 +99,11 @@ public abstract class AbstractPutAccumulo extends AbstractProcessor {
             return;
         }
 
-        final Map<String,List<PutFlowFile>> tablePuts = new HashMap<>();
+        final Map<String,List<MutationFlowFile>> tablePuts = new HashMap<>();
 
         // Group FlowFiles by Accumulo Table
         for (final FlowFile flowFile : flowFiles) {
-            final PutFlowFile putFlowFile = createPut(session, context, flowFile);
+            final MutationFlowFile putFlowFile = createPut(session, context, flowFile);
 
             if (putFlowFile == null) {
                 // sub-classes should log appropriate error messages before returning null
@@ -121,7 +121,7 @@ public abstract class AbstractPutAccumulo extends AbstractProcessor {
                 }
                 session.transfer(flowFile, REL_FAILURE);
             } else {
-                List<PutFlowFile> putFlowFiles = tablePuts.get(putFlowFile.getTableName());
+                List<MutationFlowFile> putFlowFiles = tablePuts.get(putFlowFile.getTableName());
                 if (putFlowFiles == null) {
                     putFlowFiles = new ArrayList<>();
                     tablePuts.put(putFlowFile.getTableName(), putFlowFiles);
@@ -133,17 +133,17 @@ public abstract class AbstractPutAccumulo extends AbstractProcessor {
         getLogger().debug("Sending {} FlowFiles to Accumulo in {} put operations", new Object[]{flowFiles.size(), tablePuts.size()});
 
         final long start = System.nanoTime();
-        final List<PutFlowFile> successes = new ArrayList<>();
+        final List<MutationFlowFile> successes = new ArrayList<>();
         final AccumuloClientService hBaseClientService = context.getProperty(ACCUMULO_CLIENT_SERVICE).asControllerService(AccumuloClientService.class);
 
-        for (Map.Entry<String, List<PutFlowFile>> entry : tablePuts.entrySet()) {
+        for (Map.Entry<String, List<MutationFlowFile>> entry : tablePuts.entrySet()) {
             try {
                 hBaseClientService.put(entry.getKey(), entry.getValue());
                 successes.addAll(entry.getValue());
             } catch (Exception e) {
                 getLogger().error(e.getMessage(), e);
 
-                for (PutFlowFile putFlowFile : entry.getValue()) {
+                for (MutationFlowFile putFlowFile : entry.getValue()) {
                     getLogger().error("Failed to send {} to Accumulo due to {}; routing to failure", new Object[]{putFlowFile.getFlowFile(), e});
                     final FlowFile failure = session.penalize(putFlowFile.getFlowFile());
                     session.transfer(failure, REL_FAILURE);
@@ -154,7 +154,7 @@ public abstract class AbstractPutAccumulo extends AbstractProcessor {
         final long sendMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         getLogger().debug("Sent {} FlowFiles to Accumulo successfully in {} milliseconds", new Object[]{successes.size(), sendMillis});
 
-        for (PutFlowFile putFlowFile : successes) {
+        for (MutationFlowFile putFlowFile : successes) {
             session.transfer(putFlowFile.getFlowFile(), REL_SUCCESS);
             final String details = "Put " + putFlowFile.getColumns().size() + " cells to Accumulo";
             session.getProvenanceReporter().send(putFlowFile.getFlowFile(), getTransitUri(putFlowFile), details, sendMillis);
@@ -162,7 +162,7 @@ public abstract class AbstractPutAccumulo extends AbstractProcessor {
 
     }
 
-    protected String getTransitUri(PutFlowFile putFlowFile) {
+    protected String getTransitUri(MutationFlowFile putFlowFile) {
         return "accumulo://" + putFlowFile.getTableName() + "/" + putFlowFile.getRow();
     }
 
@@ -176,8 +176,8 @@ public abstract class AbstractPutAccumulo extends AbstractProcessor {
      * @param flowFile
      *              the FlowFile to create a Put from
      *
-     * @return a PutFlowFile instance for the given FlowFile
+     * @return a MutationFlowFile instance for the given FlowFile
      */
-    protected abstract PutFlowFile createPut(final ProcessSession session, final ProcessContext context, final FlowFile flowFile);
+    protected abstract MutationFlowFile createPut(final ProcessSession session, final ProcessContext context, final FlowFile flowFile);
 
 }

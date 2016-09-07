@@ -16,8 +16,8 @@
  */
 package org.apache.nifi.accumulo;
 
-import org.apache.nifi.accumulo.put.PutColumn;
-import org.apache.nifi.accumulo.put.PutFlowFile;
+import org.apache.nifi.accumulo.mutation.MutationColumn;
+import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.reporting.InitializationException;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
@@ -62,7 +62,7 @@ public class TestPutAccumuloCell {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
+        List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
         assertEquals(1, puts.size());
         verifyPut(row, columnFamily, columnQualifier, content, puts.get(0));
 
@@ -95,7 +95,7 @@ public class TestPutAccumuloCell {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
+        List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
         assertEquals(1, puts.size());
         verifyPut(row, columnFamily, columnQualifier, content, puts.get(0));
 
@@ -183,7 +183,7 @@ public class TestPutAccumuloCell {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
+        List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
         assertEquals(2, puts.size());
         verifyPut(row1, columnFamily, columnQualifier, content1, puts.get(0));
         verifyPut(row2, columnFamily, columnQualifier, content2, puts.get(1));
@@ -245,7 +245,7 @@ public class TestPutAccumuloCell {
         assertNotNull(accumuloClient.getFlowFilePuts());
         assertEquals(1, accumuloClient.getFlowFilePuts().size());
 
-        List<PutFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
+        List<MutationFlowFile> puts = accumuloClient.getFlowFilePuts().get(tableName);
         assertEquals(2, puts.size());
         verifyPut(row, columnFamily, columnQualifier, content1, puts.get(0));
         verifyPut(row, columnFamily, columnQualifier, content2, puts.get(1));
@@ -279,13 +279,13 @@ public class TestPutAccumuloCell {
         return accumuloClient;
     }
 
-    private void verifyPut(String row, String columnFamily, String columnQualifier, String content, PutFlowFile put) {
+    private void verifyPut(String row, String columnFamily, String columnQualifier, String content, MutationFlowFile put) {
         assertEquals(row, put.getRow());
 
         assertNotNull(put.getColumns());
         assertEquals(1, put.getColumns().size());
 
-        final PutColumn column = put.getColumns().iterator().next();
+        final MutationColumn column = put.getColumns().iterator().next();
         assertEquals(columnFamily, column.getColumnFamily());
         assertEquals(columnQualifier, column.getColumnQualifier());
         assertEquals(content, new String(column.getBuffer(), StandardCharsets.UTF_8));

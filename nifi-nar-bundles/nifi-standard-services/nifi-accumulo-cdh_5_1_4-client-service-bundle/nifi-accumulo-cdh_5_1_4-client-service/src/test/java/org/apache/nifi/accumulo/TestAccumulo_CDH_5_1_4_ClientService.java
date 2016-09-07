@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 package org.apache.nifi.accumulo;
-
+/*
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
@@ -24,6 +24,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.filter.Filter;
+*/
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.hadoop.KerberosProperties;
 import org.apache.nifi.accumulo.mutation.MutationColumn;
@@ -79,7 +80,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         when(niFiPropertiesWithKerberos.getKerberosConfigurationFile()).thenReturn(null);
         kerberosPropsWithoutFile = KerberosProperties.create(niFiPropertiesWithoutKerberos);
     }
-
+/*
     @Test
     public void testCustomValidate() throws InitializationException, IOException {
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
@@ -529,5 +530,5 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
             results.put(rowStr, resultCells);
         }
     }
-
+*/
 }

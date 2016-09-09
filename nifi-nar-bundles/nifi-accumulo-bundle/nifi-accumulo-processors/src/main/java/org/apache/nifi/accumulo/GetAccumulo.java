@@ -252,7 +252,7 @@ public class GetAccumulo extends AbstractProcessor {
         final String tableName = context.getProperty(TABLE_NAME).getValue();
         final String initialTimeRange = context.getProperty(INITIAL_TIMERANGE).getValue();
         final String filterExpression = context.getProperty(FILTER_EXPRESSION).getValue();
-        final AccumuloClientService hBaseClientService = context.getProperty(ACCUMULO_CLIENT_SERVICE).asControllerService(AccumuloClientService.class);
+        final AccumuloClientService accumuloClientService = context.getProperty(ACCUMULO_CLIENT_SERVICE).asControllerService(AccumuloClientService.class);
 
         // if the table was changed then remove any previous state
         if (previousTable != null && !tableName.equals(previousTable)) {
@@ -278,7 +278,7 @@ public class GetAccumulo extends AbstractProcessor {
             final ObjectHolder<Long> latestTimestampHolder = new ObjectHolder<>(minTime);
 
 
-            hBaseClientService.scan(tableName, columns, filterExpression, minTime, new ResultHandler() {
+            accumuloClientService.scan(tableName, columns, filterExpression, minTime, new ResultHandler() {
                 @Override
                 public void handle(final byte[] rowKey, final ResultCell[] resultCells) {
 

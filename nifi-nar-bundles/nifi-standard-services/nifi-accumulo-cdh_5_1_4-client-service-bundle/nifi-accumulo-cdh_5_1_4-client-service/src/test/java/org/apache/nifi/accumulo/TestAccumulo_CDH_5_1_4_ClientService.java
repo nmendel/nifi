@@ -27,6 +27,25 @@ import org.apache.hadoop.hbase.filter.Filter;
 */
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.hadoop.KerberosProperties;
+import org.apache.nifi.hadoop.SecurityUtil;
+import org.apache.accumulo.core.client.AccumuloException;
+import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.BatchWriter;
+import org.apache.accumulo.core.client.BatchWriterConfig;
+import org.apache.accumulo.core.client.ConditionalWriter.Result;
+import org.apache.accumulo.core.client.security.tokens.PasswordToken;
+import org.apache.accumulo.core.client.Connector;
+import org.apache.accumulo.core.client.Instance;
+import org.apache.accumulo.core.client.IteratorSetting;
+import org.apache.accumulo.core.client.MutationsRejectedException;
+import org.apache.accumulo.core.client.Scanner;
+import org.apache.accumulo.core.client.TableNotFoundException;
+import org.apache.accumulo.core.client.ZooKeeperInstance;
+import org.apache.accumulo.core.data.ColumnUpdate;
+import org.apache.accumulo.core.data.Key;
+import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.Value;
+import org.apache.accumulo.core.security.Authorizations;
 import org.apache.nifi.accumulo.mutation.MutationColumn;
 import org.apache.nifi.accumulo.mutation.MutationFlowFile;
 import org.apache.nifi.accumulo.scan.Column;
@@ -41,9 +60,12 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import jline.internal.Log;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +74,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
 import java.util.NavigableMap;
 
 import static org.junit.Assert.assertEquals;
@@ -64,9 +88,10 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
 
     private KerberosProperties kerberosPropsWithFile;
     private KerberosProperties kerberosPropsWithoutFile;
+    private Connector connector;
 
     @Before
-    public void setup() {
+    public void setup() throws AccumuloException, AccumuloSecurityException {
         // needed for calls to UserGroupInformation.setConfiguration() to work when passing in
         // config with Kerberos authentication enabled
         System.setProperty("java.security.krb5.realm", "nifi.com");
@@ -79,18 +104,26 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         NiFiProperties niFiPropertiesWithoutKerberos = Mockito.mock(NiFiProperties.class);
         when(niFiPropertiesWithKerberos.getKerberosConfigurationFile()).thenReturn(null);
         kerberosPropsWithoutFile = KerberosProperties.create(niFiPropertiesWithoutKerberos);
+        
+        
+        final String instanceName = "";
+        final String zookeeperConnString = "";
+        final Instance instance = new ZooKeeperInstance(instanceName, zookeeperConnString);
+
+        final String username = "";
+        final String password = "";
+
+        connector = instance.getConnector(username, new PasswordToken(password));
     }
-/*
+
     @Test
-    public void testCustomValidate() throws InitializationException, IOException {
+    public void testCustomValidate() throws InitializationException, IOException, TableNotFoundException {
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
         final String tableName = "nifi";
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
+        
         // no conf file or zk properties so should be invalid
-        MockAccumuloClientService service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        MockAccumuloClientService service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.enableControllerService(service);
 
@@ -98,7 +131,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.removeControllerService(service);
 
         // conf file with no zk properties should be valid
-        service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.HADOOP_CONF_FILES, "src/test/resources/accumulo-site.xml");
         runner.enableControllerService(service);
@@ -107,7 +140,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.removeControllerService(service);
 
         // only quorum and no conf file should be invalid
-        service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.ZOOKEEPER_QUORUM, "localhost");
         runner.enableControllerService(service);
@@ -116,7 +149,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.removeControllerService(service);
 
         // quorum and port, no znode, no conf file, should be invalid
-        service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.ZOOKEEPER_QUORUM, "localhost");
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.ZOOKEEPER_CLIENT_PORT, "2181");
@@ -126,7 +159,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.removeControllerService(service);
 
         // quorum, port, and znode, no conf file, should be valid
-        service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.ZOOKEEPER_QUORUM, "localhost");
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.ZOOKEEPER_CLIENT_PORT, "2181");
@@ -137,7 +170,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.removeControllerService(service);
 
         // quorum and port with conf file should be valid
-        service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.HADOOP_CONF_FILES, "src/test/resources/accumulo-site.xml");
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.ZOOKEEPER_QUORUM, "localhost");
@@ -148,7 +181,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.removeControllerService(service);
 
         // Kerberos - principal with non-set keytab and only accumulo-site-security - valid because we need core-site-security to turn on security
-        service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.HADOOP_CONF_FILES, "src/test/resources/accumulo-site-security.xml");
         runner.setProperty(service, kerberosPropsWithFile.getKerberosPrincipal(), "test@REALM");
@@ -183,7 +216,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         runner.assertNotValid(service);
 
         // Kerberos - valid props but the KerberosProperties has a null Kerberos config file so be invalid
-        service = new MockAccumuloClientService(table, kerberosPropsWithoutFile);
+        service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithoutFile);
         runner.addControllerService("AccumuloClientService", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.HADOOP_CONF_FILES,
                 "src/test/resources/accumulo-site-security.xml, src/test/resources/core-site-security.xml");
@@ -194,7 +227,7 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
     }
 
     @Test
-    public void testSinglePut() throws InitializationException, IOException {
+    public void testSinglePut() throws InitializationException, IOException, MutationsRejectedException, TableNotFoundException {
         final String tableName = "nifi";
         final String row = "row1";
         final String columnFamily = "family1";
@@ -207,32 +240,30 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
 
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
-        // Mock an accumulo Table so we can verify the put operations later
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
         // create the controller service and link it to the test processor
-        final AccumuloClientService service = configureAccumuloClientService(runner, table);
+        final AccumuloClientService service = configureAccumuloClientService(runner, tableName);
         runner.assertValid(service);
 
         // try to put a single cell
-        final AccumuloClientService AccumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
+        final AccumuloClientService accumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
                 .asControllerService(AccumuloClientService.class);
 
-        AccumuloClientService.put(tableName, Arrays.asList(putFlowFile));
+        accumuloClientService.put(tableName, Arrays.asList(putFlowFile));
 
         // verify only one call to put was made
+        /* TODO
         ArgumentCaptor<List> capture = ArgumentCaptor.forClass(List.class);
         verify(table, times(1)).put(capture.capture());
 
         // verify only one put was in the list of puts
-        final List<Put> puts = capture.getValue();
+        final List<Mutation> puts = capture.getValue();
         assertEquals(1, puts.size());
         verifyPut(row, columnFamily, columnQualifier, content, puts.get(0));
+        */
     }
 
     @Test
-    public void testMultiplePutsSameRow() throws IOException, InitializationException {
+    public void testMultiplePutsSameRow() throws IOException, InitializationException, MutationsRejectedException, TableNotFoundException {
         final String tableName = "nifi";
         final String row = "row1";
         final String columnFamily = "family1";
@@ -250,36 +281,33 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
 
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
-        // Mock an accumulo Table so we can verify the put operations later
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
         // create the controller service and link it to the test processor
-        final AccumuloClientService service = configureAccumuloClientService(runner, table);
+        final AccumuloClientService service = configureAccumuloClientService(runner, tableName);
         runner.assertValid(service);
 
         // try to put a multiple cells for the same row
-        final AccumuloClientService AccumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
+        final AccumuloClientService accumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
                 .asControllerService(AccumuloClientService.class);
 
-        AccumuloClientService.put(tableName, Arrays.asList(putFlowFile1, putFlowFile2));
+        accumuloClientService.put(tableName, Arrays.asList(putFlowFile1, putFlowFile2));
 
+        /* TODO
         // verify put was only called once
         ArgumentCaptor<List> capture = ArgumentCaptor.forClass(List.class);
         verify(table, times(1)).put(capture.capture());
 
         // verify there was only one put in the list of puts
-        final List<Put> puts = capture.getValue();
+        final List<Mutation> puts = capture.getValue();
         assertEquals(1, puts.size());
 
         // verify two cells were added to this one put operation
-        final NavigableMap<byte[], List<Cell>> familyCells = puts.get(0).getFamilyCellMap();
-        Map.Entry<byte[], List<Cell>> entry = familyCells.firstEntry();
-        assertEquals(2, entry.getValue().size());
+        final List<ColumnUpdate> familyCells = puts.get(0).getUpdates();
+        assertEquals(2, familyCells.size());
+        */
     }
 
     @Test
-    public void testMultiplePutsDifferentRow() throws IOException, InitializationException {
+    public void testMultiplePutsDifferentRow() throws IOException, InitializationException, MutationsRejectedException, TableNotFoundException {
         final String tableName = "nifi";
         final String row1 = "row1";
         final String row2 = "row2";
@@ -298,40 +326,34 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
 
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
-        // Mock an accumulo Table so we can verify the put operations later
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
         // create the controller service and link it to the test processor
-        final AccumuloClientService service = configureAccumuloClientService(runner, table);
+        final AccumuloClientService service = configureAccumuloClientService(runner, tableName);
         runner.assertValid(service);
 
         // try to put a multiple cells with different rows
-        final AccumuloClientService AccumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
+        final AccumuloClientService accumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
                 .asControllerService(AccumuloClientService.class);
 
-        AccumuloClientService.put(tableName, Arrays.asList(putFlowFile1, putFlowFile2));
+        accumuloClientService.put(tableName, Arrays.asList(putFlowFile1, putFlowFile2));
 
         // verify put was only called once
+        /* TODO
         ArgumentCaptor<List> capture = ArgumentCaptor.forClass(List.class);
         verify(table, times(1)).put(capture.capture());
 
         // verify there were two puts in the list
-        final List<Put> puts = capture.getValue();
+        final List<Mutation> puts = capture.getValue();
         assertEquals(2, puts.size());
+        */
     }
 
     @Test
-    public void testScan() throws InitializationException, IOException {
+    public void testScan() throws InitializationException, IOException, TableNotFoundException {
         final String tableName = "nifi";
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
-        // Mock an accumulo Table so we can verify the put operations later
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
         // create the controller service and link it to the test processor
-        final MockAccumuloClientService service = configureAccumuloClientService(runner, table);
+        final MockAccumuloClientService service = configureAccumuloClientService(runner, tableName);
         runner.assertValid(service);
 
         // stage some results in the mock service...
@@ -348,10 +370,10 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
 
         // perform a scan and verify the four rows were returned
         final CollectingResultHandler handler = new CollectingResultHandler();
-        final AccumuloClientService AccumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
+        final AccumuloClientService accumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
                 .asControllerService(AccumuloClientService.class);
 
-        AccumuloClientService.scan(tableName, new ArrayList<Column>(), null, now, handler);
+        accumuloClientService.scan(tableName, new ArrayList<Column>(), null, now, handler);
         assertEquals(4, handler.results.size());
 
         // get row0 using the row id and verify it has 2 cells
@@ -364,53 +386,45 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
     }
 
     @Test
-    public void testScanWithValidFilter() throws InitializationException, IOException {
+    public void testScanWithValidFilter() throws InitializationException, IOException, TableNotFoundException {
         final String tableName = "nifi";
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
-        // Mock an accumulo Table so we can verify the put operations later
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
         // create the controller service and link it to the test processor
-        final MockAccumuloClientService service = configureAccumuloClientService(runner, table);
+        final MockAccumuloClientService service = configureAccumuloClientService(runner, tableName);
         runner.assertValid(service);
 
         // perform a scan and verify the four rows were returned
         final CollectingResultHandler handler = new CollectingResultHandler();
-        final AccumuloClientService AccumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
+        final AccumuloClientService accumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
                 .asControllerService(AccumuloClientService.class);
 
         // make sure we parse the filter expression without throwing an exception
         final String filter = "PrefixFilter ('Row') AND PageFilter (1) AND FirstKeyOnlyFilter ()";
-        AccumuloClientService.scan(tableName, new ArrayList<Column>(), filter, System.currentTimeMillis(), handler);
+        accumuloClientService.scan(tableName, new ArrayList<Column>(), filter, System.currentTimeMillis(), handler);
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testScanWithInvalidFilter() throws InitializationException, IOException {
+    public void testScanWithInvalidFilter() throws InitializationException, IOException, TableNotFoundException {
         final String tableName = "nifi";
         final TestRunner runner = TestRunners.newTestRunner(TestProcessor.class);
 
-        // Mock an accumulo Table so we can verify the put operations later
-        final Table table = Mockito.mock(Table.class);
-        when(table.getName()).thenReturn(TableName.valueOf(tableName));
-
         // create the controller service and link it to the test processor
-        final MockAccumuloClientService service = configureAccumuloClientService(runner, table);
+        final MockAccumuloClientService service = configureAccumuloClientService(runner, tableName);
         runner.assertValid(service);
 
         // perform a scan and verify the four rows were returned
         final CollectingResultHandler handler = new CollectingResultHandler();
-        final AccumuloClientService AccumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
+        final AccumuloClientService accumuloClientService = runner.getProcessContext().getProperty(TestProcessor.ACCUMULO_CLIENT_SERVICE)
                 .asControllerService(AccumuloClientService.class);
 
         // this should throw IllegalArgumentException
         final String filter = "this is not a filter";
-        AccumuloClientService.scan(tableName, new ArrayList<Column>(), filter, System.currentTimeMillis(), handler);
+        accumuloClientService.scan(tableName, new ArrayList<Column>(), filter, System.currentTimeMillis(), handler);
     }
 
-    private MockAccumuloClientService configureAccumuloClientService(final TestRunner runner, final Table table) throws InitializationException {
-        final MockAccumuloClientService service = new MockAccumuloClientService(table, kerberosPropsWithFile);
+    private MockAccumuloClientService configureAccumuloClientService(final TestRunner runner, final String tableName) throws InitializationException, TableNotFoundException {
+        final MockAccumuloClientService service = new MockAccumuloClientService(connector, tableName, kerberosPropsWithFile);
         runner.addControllerService("accumuloClient", service);
         runner.setProperty(service, Accumulo_CDH_5_1_4_ClientService.HADOOP_CONF_FILES, "src/test/resources/accumulo-site.xml");
         runner.enableControllerService(service);
@@ -429,31 +443,43 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         assertEquals(val, value);
     }
 
-    private void verifyPut(String row, String columnFamily, String columnQualifier, String content, Put put) {
+    private void verifyPut(String row, String columnFamily, String columnQualifier, String content, Mutation put) {
         assertEquals(row, new String(put.getRow()));
 
-        NavigableMap<byte [], List<Cell>> familyCells = put.getFamilyCellMap();
-        assertEquals(1, familyCells.size());
+        List<ColumnUpdate> updates = put.getUpdates();
+        assertEquals(1, updates.size());
 
-        Map.Entry<byte[], List<Cell>> entry = familyCells.firstEntry();
-        assertEquals(columnFamily, new String(entry.getKey()));
-        assertEquals(1, entry.getValue().size());
+        ColumnUpdate entry = updates.get(0);
+        assertEquals(columnFamily, new String(entry.getColumnFamily()));
+        assert(entry.getValue().length > 0);
 
-        Cell cell = entry.getValue().get(0);
-        assertEquals(columnQualifier, new String(cell.getQualifierArray(), cell.getQualifierOffset(), cell.getQualifierLength()));
-        assertEquals(content, new String(cell.getValueArray(), cell.getValueOffset(), cell.getValueLength()));
+        assertEquals(columnQualifier, new String(entry.getColumnQualifier()));
+        assertEquals(content, new String(entry.getValue()));
     }
 
     // Override methods to create a mock service that can return staged data
     private class MockAccumuloClientService extends Accumulo_CDH_5_1_4_ClientService {
 
-        private Table table;
-        private List<Result> results = new ArrayList<>();
+        private String tableName;
+        private BatchWriter batchWriter;
+        private Scanner scanner;
+        private BatchWriterConfig writerConfig;
+        private List<Entry<Key, Value>> results = new ArrayList<>();
         private KerberosProperties kerberosProperties;
 
-        public MockAccumuloClientService(final Table table, final KerberosProperties kerberosProperties) {
-            this.table = table;
+        public MockAccumuloClientService(final Connector connector, final String tableName, final KerberosProperties kerberosProperties) throws TableNotFoundException {
+            this.tableName = tableName;
+            this.batchWriter = connector.createBatchWriter(tableName, writerConfig);
+            this.scanner = connector.createScanner(tableName, new Authorizations());
             this.kerberosProperties = kerberosProperties;
+            
+            BatchWriterConfig conf = new BatchWriterConfig();
+        	conf.setMaxMemory(10000L);
+        	conf.setMaxWriteThreads(2);
+        	conf.setMaxLatency(10,  TimeUnit.SECONDS);
+        	conf.setTimeout(10, TimeUnit.SECONDS);
+        	this.writerConfig = conf;
+        	
         }
 
         @Override
@@ -468,10 +494,11 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
         public void addResult(final String rowKey, final Map<String, String> cells, final long timestamp) {
             final byte[] rowArray = rowKey.getBytes(StandardCharsets.UTF_8);
 
-            final Cell[] cellArray = new Cell[cells.size()];
+            final ResultCell[] cellArray = new ResultCell[cells.size()];
             int i = 0;
             for (final Map.Entry<String, String> cellEntry : cells.entrySet()) {
-                final Cell cell = Mockito.mock(Cell.class);
+                final ResultCell cell = Mockito.mock(ResultCell.class);
+                
                 when(cell.getRowArray()).thenReturn(rowArray);
                 when(cell.getRowOffset()).thenReturn(0);
                 when(cell.getRowLength()).thenReturn((short) rowArray.length);
@@ -498,24 +525,31 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
                 cellArray[i++] = cell;
             }
 
-            final Result result = Mockito.mock(Result.class);
-            when(result.getRow()).thenReturn(rowArray);
-            when(result.rawCells()).thenReturn(cellArray);
+            final Entry<Key, Value> result = Mockito.mock(Entry.class);
+            when(result.getKey().getRow().getBytes()).thenReturn(rowArray);
+            // TODO: when(result.getValue().get()).thenReturn(cellArray);
             results.add(result);
         }
 
         @Override
-        protected ResultScanner getResults(Table table, Collection<Column> columns, Filter filter, long minTime) throws IOException {
-            final ResultScanner scanner = Mockito.mock(ResultScanner.class);
+        protected Scanner getResults(String tableName, Collection<Column> columns, IteratorSetting filter, long minTime) throws IOException {
+            final Scanner scanner = Mockito.mock(Scanner.class);
             Mockito.when(scanner.iterator()).thenReturn(results.iterator());
             return scanner;
         }
 
         @Override
-        protected Connection createConnection(ConfigurationContext context) throws IOException {
-            Connection connection = Mockito.mock(Connection.class);
-            Mockito.when(connection.getTable(table.getName())).thenReturn(table);
-            return connection;
+        protected Connector createConnection(ConfigurationContext context) throws IOException {
+        	Connector connector = Mockito.mock(Connector.class);
+        	
+        	try {
+        		Mockito.when(connector.createBatchWriter(tableName, writerConfig)).thenReturn(batchWriter);
+        		Mockito.when(connector.createScanner(tableName, new Authorizations())).thenReturn(scanner);
+        	} catch(TableNotFoundException e) {
+        		Log.error(String.format("Could not find table %s, aborting", tableName));
+        		System.exit(1);
+        	}
+            return connector;
         }
     }
 
@@ -530,5 +564,5 @@ public class TestAccumulo_CDH_5_1_4_ClientService {
             results.put(rowStr, resultCells);
         }
     }
-*/
+
 }
